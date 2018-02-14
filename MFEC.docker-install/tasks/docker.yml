@@ -1,0 +1,82 @@
+---
+- name: Edit File Hosts
+  lineinfile:
+    path: /etc/hosts
+    line: '{{item.hosts}}'
+  with_items:
+    - {hosts: ' {{ ip_host }}   {{ host_name }}'}
+  tags: hosts   
+- name: Install Package Basic
+  yum:
+    name: "{{ item.name }}"
+    state: latest
+  with_items:
+    - {name: 'wget'}
+    - {name: 'git'}
+    - {name: 'net-tools'}
+    - {name: 'bind-utils'}
+    - {name: 'iptables-services'}
+    - {name: 'bridge-utils'}
+    - {name: 'bash-completion'}
+    - {name: 'kexec-tools'}
+    - {name: 'sos'}
+    - {name: 'psacct'}
+  tags: packages
+- name: Upgrade all packages in RedHat-based machines
+  yum: 
+    name=*
+    state=latest
+  tags: update
+- name: Install Docker
+  yum:
+    name: docker
+    state: latest
+  tags: docker
+- name: Edit file Network Docker
+  replace:
+    path: /etc/sysconfig/docker
+    regexp: 'OPTIONS=.*'
+    replace: 'OPTIONS="--selinux-enabled --insecure-registry 172.30.0.0/16"'
+    backup: yes   
+  tags: docker
+- name: Edit Config proxy MFEC
+  lineinfile:
+    path: /etc/sysconfig/docker
+    line: '{{item.hosts}}'
+  with_items:
+    - {hosts: 'HTTP_PROXY="{{ http_proxy }}"'}
+    - {hosts: 'HTTPS_PROXY="{{ http_proxy }}"'}
+    - {hosts: 'NO_PROXY="172.30.1.1"'}
+  when: enable_proxy  
+- name: Create vg Docker-volume
+  lvg:
+    vg: docker-vg
+    pvs: "{{ pvs_path }}"
+  tags: vg
+- name: Edit Docker Storage Setup
+  lineinfile:
+    path: /etc/sysconfig/docker-storage-setup
+    line: 'VG=docker-vg'
+- name: Edit Docker Storage Thin-Pool
+  lineinfile:
+    path: /etc/sysconfig/docker-storage-setup
+    line: 'SETUP_LVM_THIN_POOL=yes'    
+  tags: edit-vg
+- name: Run Command docker-storage-setup
+  command: docker-storage-setup
+  register: out
+  tags: docker-storage
+- debug: var=out.stdout_lines
+  tags: output
+- name: Resize docker-pool
+  lvol:
+    vg: docker-vg
+    lv: docker-pool
+    size: +100%FREE
+  tags: resize-lvs
+- name: Enable Docker Service
+  service:
+    name: docker
+    state: started
+    enabled: yes
+  tags: start-docker

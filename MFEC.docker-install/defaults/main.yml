@@ -1,0 +1,8 @@
+---
+# defaults file for MFEC.docker-install
+ip_host: 192.168.56.60
+host_name: docker.example.com
+pvs_path: /dev/sdb
+preparedocker: true
+enable_proxy: false
+http_proxy: "http://proxy.com:8080"
